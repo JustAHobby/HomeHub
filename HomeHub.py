@@ -32,12 +32,11 @@ class HomeHub():
 		fontPath = self.Config.get('PAPIRUS', 'fontPath')
 		self.fontSize = int(self.Config.get('PAPIRUS', 'fontSize'))
 		backgroundPath = self.Config.get('PAPIRUS', 'backgroundPath')
-		defaultDisplayOption = self.Config.get('HOMEHUB', 'defaultDisplayOption')
+		self.defaultDisplayOption = self.Config.get('HOMEHUB', 'defaultDisplayOption')
+		self.url = self.Config.get('HOMEHUB', 'url')
 
-                url = self.Config.get('HOMEHUB', 'url')
                 self.currentLightGroup = 0
-		self.jsonLightGroups = self.QueryLightList(url)
-                self.lightGroups = self.JsonLightToLightGroupNames(self.jsonLightGroups, defaultDisplayOption)
+		self.ResetLightGroups(True)
 
 		#papirus setup
                 self.initX = 15
@@ -57,19 +56,28 @@ class HomeHub():
 
 		self.ButtonRead()
 
+
+	def ResetLightGroups(self, init):
+		print 'resetLightGroup'
+		self.jsonLightGroups = self.QueryLightList(self.url)
+                self.lightGroups = self.JsonLightToLightGroupNames(self.jsonLightGroups, self.defaultDisplayOption, init)
+		print 'powerTest:'+str(self.jsonLightGroups[self.lightGroups[self.currentLightGroup]][0]['power'])
+
 	#initial homehub query to retrieve light list
 	def QueryLightList(self, url):
+		print 'QueryLightList'
 		queryParams = {self.Config.get('HOMEHUB', 'queryValue'):self.Config.get('HOMEHUB', 'paramValue')}
 		page = requests.get(url, queryParams)
 
 		#light group setup
 		return json.loads(page.text)
 
-	def JsonLightToLightGroupNames(self, jsonObject, default):
+	def JsonLightToLightGroupNames(self, jsonObject, default, init):
                 lightGroups = []
+		print 'jsonToNames'
 		for key in jsonObject:
 			lightGroups.append(key)
-			if key == default:
+			if key == default and init:
         			self.currentLightGroup = len(lightGroups)-1
 
 		return lightGroups
@@ -121,13 +129,15 @@ class HomeHub():
 				sleep(0.1)
 
 			if GPIO.input(self.SW4) == False:
-				currentLightStatus = self.jsonLightGroups[self.lightGroups[self.currentLightGroup]][0]['is_on']
+				currentLightStatus = self.jsonLightGroups[self.lightGroups[self.currentLightGroup]][0]['power']
 				newLightStatus = 'true'
 				if currentLightStatus:
 					newLightStatus = 'false'
+				print 'lightStatus:'+newLightStatus 
 				updateParams = {self.Config.get('HOMEHUB', 'queryValue'):self.Config.get('HOMEHUB', 'updateParamValue'),self.Config.get('HOMEHUB', 'updateGroupQueryValue'):self.lightGroups[self.currentLightGroup],self.Config.get('HOMEHUB', 'updateStatusQueryValue'):newLightStatus}
-				url = self.Config.get('HOMEHUB', 'url')
-				toggle = requests.get(url, updateParams, timeout=5)
+				toggle = requests.get(self.url, updateParams, timeout=5)
+				sleep(0.1)
+				self.ResetLightGroups(False)
 				sleep(0.1)
 
 			sleep(0.1)
